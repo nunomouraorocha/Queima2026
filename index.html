@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Queima das Fitas 2026 — Dashboard Financeiro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  /* ===== RESET & BASE ===== */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080D1A;
+    --card: #101828;
+    --card2: #141E30;
+    --border: #1C2A42;
+    --red: #C0392B;
+    --red-light: #E74C3C;
+    --red-glow: rgba(192,57,43,0.15);
+    --green: #27AE60;
+    --green-light: #2ECC71;
+    --orange: #E67E22;
+    --blue: #2980B9;
+    --text: #E8ECF4;
+    --sub: #8896B0;
+    --muted: #3D4F6E;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; min-height: 100vh; }
+
+  /* ===== HEADER ===== */
+  .header { background: linear-gradient(135deg, #0d0208 0%, #1a0308 40%, #0d0f1a 100%); border-bottom: 1px solid var(--border); padding: 0; position: relative; overflow: hidden; }
+  .header::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: radial-gradient(ellipse at 30% 50%, rgba(192,57,43,0.12) 0%, transparent 60%); pointer-events: none; }
+  .header-inner { max-width: 1400px; margin: 0 auto; padding: 28px 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+  .header-left { display: flex; align-items: center; gap: 18px; }
+  .logo-badge { width: 52px; height: 52px; background: var(--red); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 0 24px rgba(192,57,43,0.4); }
+  .header-title h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-title p { font-size: 13px; color: var(--sub); margin-top: 2px; }
+  .header-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .last-update { font-size: 11px; color: var(--sub); }
+  .refresh-btn { background: var(--card2); border: 1px solid var(--border); color: var(--text); padding: 7px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; }
+  .refresh-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* ===== LOADING / ERROR ===== */
+  .state-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 24px; gap: 16px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .state-screen p { color: var(--sub); font-size: 14px; }
+  .error-box { background: rgba(192,57,43,0.1); border: 1px solid rgba(192,57,43,0.3); border-radius: 12px; padding: 24px 32px; text-align: center; max-width: 500px; }
+  .error-box h3 { color: var(--red-light); margin-bottom: 8px; }
+  .error-box p { color: var(--sub); font-size: 13px; line-height: 1.6; }
+
+  /* ===== MAIN LAYOUT ===== */
+  .main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; display: flex; flex-direction: column; gap: 24px; }
+
+  /* ===== SECTION TITLE ===== */
+  .section-title { font-size: 11px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: var(--sub); margin-bottom: 4px; }
+
+  /* ===== METRIC CARDS ===== */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px 24px; transition: border-color 0.2s; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--accent, var(--border)); border-radius: 16px 16px 0 0; }
+  .card:hover { border-color: var(--accent, var(--border)); }
+  .card-label { font-size: 11px; color: var(--sub); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 10px; }
+  .card-value { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; line-height: 1; }
+  .card-sub { font-size: 12px; color: var(--sub); margin-top: 8px; }
+  .card-icon { position: absolute; top: 20px; right: 20px; font-size: 20px; opacity: 0.4; }
+  .card--fap { --accent: var(--blue); }
+  .card--revolut { --accent: var(--orange); }
+  .card--pessoa { --accent: var(--green); }
+  .card--delta { }
+  .val-pos { color: var(--green-light); }
+  .val-neg { color: var(--red-light); }
+  .val-neu { color: var(--text); }
+
+  /* ===== SALDOS ROW ===== */
+  .saldos-bar { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 24px; display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+  .saldo-item { display: flex; flex-direction: column; gap: 4px; }
+  .saldo-item .lbl { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
+  .saldo-item .val { font-size: 22px; font-weight: 700; }
+  .saldo-divider { width: 1px; height: 40px; background: var(--border); flex-shrink: 0; }
+  .saldo-total { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .saldo-total .lbl { font-size: 11px; color: var(--sub); text-transform: uppercase; letter-spacing: 0.5px; }
+  .saldo-total .val { font-size: 28px; font-weight: 800; }
+  .saldo-total .sub { font-size: 12px; color: var(--sub); }
+
+  /* ===== CHART ===== */
+  .chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  .chart-header h2 { font-size: 15px; font-weight: 600; }
+  .chart-legend { display: flex; gap: 20px; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--sub); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .chart-canvas-wrap { position: relative; height: 280px; }
+
+  /* ===== NOITES TABLE ===== */
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  .table-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  .table-header h2 { font-size: 15px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--card2); padding: 10px 16px; text-align: right; font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--sub); white-space: nowrap; }
+  th:first-child { text-align: left; }
+  td { padding: 11px 16px; text-align: right; border-top: 1px solid var(--border); white-space: nowrap; }
+  td:first-child { text-align: left; font-weight: 500; color: var(--text); }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .td-green { color: var(--green-light); font-weight: 600; }
+  .td-red { color: var(--red-light); font-weight: 600; }
+  .td-blue { color: #5DADE2; }
+  .td-orange { color: #F0B27A; }
+  .td-muted { color: var(--sub); }
+  .td-zero { color: var(--muted); }
+  .night-badge { display: inline-flex; align-items: center; gap: 6px; }
+  .night-num { background: var(--red-glow); border: 1px solid rgba(192,57,43,0.3); color: var(--red-light); font-size: 11px; font-weight: 700; width: 24px; height: 24px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ===== STOCK TABLE ===== */
+  .stock-table th:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) { min-width: 55px; }
+  .stock-val { font-variant-numeric: tabular-nums; }
+  .stock-zero { color: var(--muted); }
+  .stock-pos { color: var(--text); }
+  .cat-row td { background: rgba(255,255,255,0.03); color: var(--sub); font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; font-weight: 600; padding: 7px 16px; }
+
+  /* ===== FOOTER ===== */
+  .footer { text-align: center; padding: 32px 24px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); margin-top: 8px; }
+  .footer a { color: var(--sub); text-decoration: none; }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 768px) {
+    .header-inner { padding: 20px 16px; }
+    .main { padding: 20px 16px; gap: 16px; }
+    .cards-grid { grid-template-columns: 1fr 1fr; }
+    .saldos-bar { flex-direction: column; align-items: flex-start; gap: 16px; }
+    .saldo-total { margin-left: 0; align-items: flex-start; }
+    .saldo-divider { width: 100%; height: 1px; }
+    .chart-canvas-wrap { height: 220px; }
+    th, td { padding: 9px 10px; font-size: 12px; }
+  }
+  @media (max-width: 480px) {
+    .cards-grid { grid-template-columns: 1fr; }
+    .card-value { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+  <div class="header-inner">
+    <div class="header-left">
+      <div class="logo-badge">🍺</div>
+      <div class="header-title">
+        <h1>Queima das Fitas 2026</h1>
+        <p>Dashboard Financeiro da Barraquinha · 8 Noites</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="last-update" id="lastUpdate">A carregar dados...</span>
+      <button class="refresh-btn" onclick="loadData()">↻ Atualizar</button>
+    </div>
+  </div>
+</header>
+
+<!-- ===== LOADING STATE ===== -->
+<div id="loadingScreen" class="state-screen">
+  <div class="spinner"></div>
+  <p>A carregar dados do Google Sheets...</p>
+</div>
+
+<!-- ===== ERROR STATE ===== -->
+<div id="errorScreen" class="state-screen" style="display:none;">
+  <div class="error-box">
+    <h3>Erro ao carregar dados</h3>
+    <p id="errorMsg">Não foi possível aceder ao Google Sheets. Certifica-te que o ficheiro está publicado na web e que o PUBLISHED_ID está correto.</p>
+  </div>
+</div>
+
+<!-- ===== MAIN DASHBOARD ===== -->
+<main id="dashboard" class="main" style="display:none;">
+
+  <!-- SALDOS BAR -->
+  <div class="saldos-bar">
+    <div class="saldo-item">
+      <span class="lbl">💳 Saldo FAP</span>
+      <span class="val td-blue" id="saldoFAP">—</span>
+    </div>
+    <div class="saldo-divider"></div>
+    <div class="saldo-item">
+      <span class="lbl">📱 Saldo Revolut</span>
+      <span class="val td-orange" id="saldoRevolut">—</span>
+    </div>
+    <div class="saldo-divider"></div>
+    <div class="saldo-item">
+      <span class="lbl">📦 Stock Devolvível</span>
+      <span class="val td-muted" id="stockDevolv">—</span>
+    </div>
+    <div class="saldo-total">
+      <span class="lbl">Total em Caixa</span>
+      <span class="val" id="totalCaixa">—</span>
+      <span class="sub" id="totalCaixaSub">Saldo FAP + Revolut</span>
+    </div>
+  </div>
+
+  <!-- METRIC CARDS -->
+  <div>
+    <p class="section-title">Métricas Principais</p>
+    <div class="cards-grid">
+      <div class="card card--pessoa">
+        <span class="card-icon">👤</span>
+        <div class="card-label">Se Parássemos Hoje — Por Pessoa</div>
+        <div class="card-value" id="porPessoa">—</div>
+        <div class="card-sub" id="porPessoaSub">Capital inicial: 330 €</div>
+      </div>
+      <div class="card card--delta">
+        <span class="card-icon">📊</span>
+        <div class="card-label">Lucro / Prejuízo por Pessoa</div>
+        <div class="card-value" id="vs330">—</div>
+        <div class="card-sub" id="vs330Sub">vs. 330 € investidos</div>
+      </div>
+      <div class="card card--fap">
+        <span class="card-icon">💰</span>
+        <div class="card-label">Total Requisições (Custo Variável)</div>
+        <div class="card-value" id="totalReq">—</div>
+        <div class="card-sub" id="totalReqSub">Acumulado semana</div>
+      </div>
+      <div class="card card--revolut">
+        <span class="card-icon">🏷️</span>
+        <div class="card-label">Total Custos Fixos</div>
+        <div class="card-value" id="custosFix">—</div>
+        <div class="card-sub">Tintas, passes, montagem...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-wrap">
+    <div class="chart-header">
+      <h2>Receitas vs. Requisições por Noite</h2>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#27AE60"></div>Receita (€)</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#C0392B"></div>Requisição (€)</div>
+      </div>
+    </div>
+    <div class="chart-canvas-wrap">
+      <canvas id="nightChart"></canvas>
+    </div>
+  </div>
+
+  <!-- NOITES TABLE -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <h2>Detalhe por Noite</h2>
+      <span style="font-size:12px;color:var(--sub);">T1 + T2 + T3 = Receita Total</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Noite</th>
+            <th>Terminal 1</th>
+            <th>Terminal 2</th>
+            <th>Terminal 3</th>
+            <th>Receita Total</th>
+            <th>Custo Req.</th>
+            <th>Margem</th>
+            <th>Saldo FAP</th>
+            <th>Saldo Revolut</th>
+          </tr>
+        </thead>
+        <tbody id="nightsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- STOCK TABLE -->
+  <div class="table-wrap" id="stockSection" style="display:none;">
+    <div class="table-header">
+      <h2>Stock por Noite</h2>
+      <span style="font-size:12px;color:var(--sub);">Unidades acumuladas requisitadas</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="stock-table">
+        <thead>
+          <tr>
+            <th>Produto</th>
+            <th>Unidade</th>
+            <th>Preço</th>
+            <th>N1</th><th>N2</th><th>N3</th><th>N4</th>
+            <th>N5</th><th>N6</th><th>N7</th><th>N8</th>
+          </tr>
+        </thead>
+        <tbody id="stockBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <p>Queima das Fitas do Porto 2026 · Dashboard atualizado automaticamente a partir do Google Sheets</p>
+</footer>
+
+<script>
+// ============================================================
+// CONFIG — substitui pelo teu Published ID após publicar o Sheet
+// ============================================================
+const PUBLISHED_ID = "2PACX-1vQt99VnTcoV4pyp5RwXryTCKX7F5shx86xqQUd9P92n9QaB7tAMjE3TxzFrGOKI_w";
+// ============================================================
+
+const CSV_URL = `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?gid=0&single=true&output=csv&cachebust=${Date.now()}`;
+
+let chartInstance = null;
+
+// ===== FORMATTING =====
+function fmt(val, digits = 2) {
+  const n = parseFloat(val);
+  if (isNaN(n) || n === 0) return "—";
+  return n.toLocaleString("pt-PT", { minimumFractionDigits: digits, maximumFractionDigits: digits }) + " €";
+}
+function fmtNum(val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return "—";
+  return n.toLocaleString("pt-PT");
+}
+function colorClass(val) {
+  const n = parseFloat(val);
+  if (isNaN(n) || n === 0) return "td-zero";
+  return n > 0 ? "td-green" : "td-red";
+}
+function signedFmt(val) {
+  const n = parseFloat(val);
+  if (isNaN(n) || n === 0) return "—";
+  const s = n >= 0 ? "+" : "";
+  return s + n.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+// ===== CSV PARSER =====
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cell = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (c === ',' && !inQ) { row.push(cell); cell = ""; continue; }
+    if ((c === '\n' || c === '\r') && !inQ) {
+      row.push(cell); cell = "";
+      if (row.some(x => x.trim())) rows.push(row);
+      row = [];
+      if (c === '\r' && text[i+1] === '\n') i++;
+      continue;
+    }
+    cell += c;
+  }
+  if (cell || row.length) { row.push(cell); if (row.some(x => x.trim())) rows.push(row); }
+  return rows;
+}
+
+// ===== MAIN LOAD =====
+async function loadData() {
+  document.getElementById("loadingScreen").style.display = "flex";
+  document.getElementById("errorScreen").style.display = "none";
+  document.getElementById("dashboard").style.display = "none";
+
+  try {
+    const res = await fetch(CSV_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    const rows = parseCSV(text);
+    renderDashboard(rows);
+    document.getElementById("lastUpdate").textContent = "Atualizado às " + new Date().toLocaleTimeString("pt-PT");
+  } catch (e) {
+    document.getElementById("loadingScreen").style.display = "none";
+    document.getElementById("errorScreen").style.display = "flex";
+    document.getElementById("errorMsg").textContent = "Erro: " + e.message + ". Verifica que o PUBLISHED_ID está correto e que o Sheet está publicado na web.";
+  }
+}
+
+// ===== RENDER =====
+function renderDashboard(rows) {
+  const metrics = {}, nights = [], stock = [];
+
+  for (const row of rows) {
+    const tipo = (row[0] || "").trim();
+    if (tipo === "METRICA") {
+      const key = (row[1] || "").trim();
+      const val = (row[2] || "").replace(/[€\s]/g, "").replace(",", ".");
+      metrics[key] = val;
+    } else if (tipo === "DIARIO") {
+      nights.push({
+        name: (row[1] || "").trim(),
+        t1: row[2] || "0", t2: row[3] || "0", t3: row[4] || "0",
+        receita: row[5] || "0", req: row[6] || "0",
+        fap: row[7] || "0", revolut: row[8] || "0"
+      });
+    } else if (tipo === "STOCK") {
+      stock.push({
+        name: (row[1] || "").trim(),
+        unit: (row[2] || "").trim(),
+        price: row[3] || "0",
+        days: [row[4],row[5],row[6],row[7],row[8],row[9],row[10],row[11]].map(x => x||"0")
+      });
+    }
+  }
+
+  // ===== SALDOS BAR =====
+  const fap = parseFloat(metrics.saldo_fap) || 0;
+  const revolut = parseFloat(metrics.saldo_revolut) || 0;
+  const stockD = parseFloat(metrics.stock_devolv) || 0;
+  const total = fap + revolut;
+
+  el("saldoFAP").textContent = fap === 0 ? "—" : fap.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("saldoRevolut").textContent = revolut === 0 ? "—" : revolut.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("stockDevolv").textContent = stockD === 0 ? "0,00 €" : stockD.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("totalCaixa").textContent = total === 0 ? "—" : total.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("totalCaixa").className = "val " + (total >= 0 ? "td-green" : "td-red");
+
+  // ===== CARDS =====
+  const pP = parseFloat(metrics.por_pessoa) || 0;
+  const vs = parseFloat(metrics.vs_330) || 0;
+  const req = parseFloat(metrics.total_requisicoes) || 0;
+  const cf = parseFloat(metrics.total_custos_fixos) || 0;
+
+  el("porPessoa").textContent = pP === 0 ? "—" : pP.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("porPessoa").className = "card-value " + (pP > 330 ? "val-pos" : pP < 330 && pP > 0 ? "val-neg" : "val-neu");
+  el("porPessoaSub").textContent = pP > 0 ? `Capital investido: 330,00 €` : "Sem dados ainda";
+
+  el("vs330").textContent = vs === 0 ? "—" : (vs >= 0 ? "+" : "") + vs.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("vs330").className = "card-value " + (vs > 0 ? "val-pos" : vs < 0 ? "val-neg" : "val-neu");
+  el("vs330Sub").textContent = vs > 0 ? "🟢 Em lucro!" : vs < 0 ? "🔴 Em prejuízo" : "Aguarda dados";
+
+  el("totalReq").textContent = req === 0 ? "—" : req.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  el("totalReqSub").textContent = req > 0 ? "Bebidas requisitadas à FAP" : "Sem requisições ainda";
+
+  el("custosFix").textContent = cf === 0 ? "—" : cf.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+
+  // ===== CHART =====
+  const labels = nights.map((n,i) => n.name || `Noite ${i+1}`);
+  const receitas = nights.map(n => parseFloat(n.receita) || 0);
+  const reqs = nights.map(n => parseFloat(n.req) || 0);
+
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(document.getElementById("nightChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Receita (€)", data: receitas, backgroundColor: "rgba(39,174,96,0.75)", borderColor: "#27AE60", borderWidth: 1.5, borderRadius: 5, borderSkipped: false },
+        { label: "Requisição (€)", data: reqs, backgroundColor: "rgba(192,57,43,0.65)", borderColor: "#C0392B", borderWidth: 1.5, borderRadius: 5, borderSkipped: false }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#141929", borderColor: "#1C2A42", borderWidth: 1,
+          titleColor: "#E8ECF4", bodyColor: "#8896B0",
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toLocaleString("pt-PT", {minimumFractionDigits:2})} €`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#8896B0", font: { size: 12 } } },
+        y: {
+          grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#8896B0", font: { size: 11 },
+            callback: v => v.toLocaleString("pt-PT") + " €"
+          }, beginAtZero: true
+        }
+      }
+    }
+  });
+
+  // ===== NIGHTS TABLE =====
+  const tbody = el("nightsBody");
+  tbody.innerHTML = "";
+  nights.forEach((n, i) => {
+    const r = parseFloat(n.receita) || 0;
+    const c = parseFloat(n.req) || 0;
+    const margem = r - c;
+    const hasData = r > 0 || c > 0;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="night-badge"><span class="night-num">${i+1}</span>${n.name || "Noite "+(i+1)}</span></td>
+      <td class="${hasData ? 'td-blue' : 'td-zero'}">${hasData ? fmtV(n.t1) : "—"}</td>
+      <td class="${hasData ? 'td-blue' : 'td-zero'}">${hasData ? fmtV(n.t2) : "—"}</td>
+      <td class="${hasData ? 'td-blue' : 'td-zero'}">${hasData ? fmtV(n.t3) : "—"}</td>
+      <td class="${r>0?'td-green':'td-zero'}" style="font-weight:700">${r>0?r.toLocaleString("pt-PT",{minimumFractionDigits:2})+" €":"—"}</td>
+      <td class="${c>0?'td-red':'td-zero'}">${c>0?c.toLocaleString("pt-PT",{minimumFractionDigits:2})+" €":"—"}</td>
+      <td class="${margem>0?'td-green':margem<0?'td-red':'td-zero'}" style="font-weight:600">${hasData?(margem>=0?"+":"")+margem.toLocaleString("pt-PT",{minimumFractionDigits:2})+" €":"—"}</td>
+      <td class="td-blue">${fmtV(n.fap)}</td>
+      <td class="td-orange">${fmtV(n.revolut)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // ===== STOCK TABLE =====
+  const stockWithData = stock.filter(p => p.days.some(d => parseFloat(d) > 0));
+  if (stockWithData.length > 0) {
+    el("stockSection").style.display = "";
+    const sbody = el("stockBody");
+    sbody.innerHTML = "";
+
+    // Group by category
+    const cats = [
+      { key: "Copos", label: "Copos & Gelo" },
+      { key: "Cerveja", label: "Cervejas & Sidra" },
+      { key: "Sidra", label: null },
+      { key: "Tubo", label: null },
+      { key: "Red Bull", label: "Red Bull" },
+      { key: "Sumo", label: "Sumos & Mixers" },
+      { key: "Coca", label: null },
+      { key: "Snappy", label: null },
+      { key: "Água T", label: null },
+      { key: "Ginger", label: null },
+      { key: "Pedras", label: null },
+      { key: "Água V", label: null },
+    ];
+
+    let lastCat = null;
+    stockWithData.forEach(p => {
+      // Add category row if needed
+      let catLabel = "Spirits & Licores";
+      if (p.name.startsWith("Copos") || p.name.startsWith("Gelo")) catLabel = "Copos & Gelo";
+      else if (p.name.startsWith("Cerveja") || p.name.startsWith("Sidra") || p.name.startsWith("Tubo")) catLabel = "Cervejas & Sidra";
+      else if (p.name.startsWith("Red Bull")) catLabel = "Red Bull";
+      else if (p.name.startsWith("Sumo") || p.name.startsWith("Coca") || p.name.startsWith("Snappy") || p.name.startsWith("Água T") || p.name.startsWith("Ginger") || p.name.startsWith("Pedras") || p.name.startsWith("Água V")) catLabel = "Sumos & Mixers";
+
+      if (catLabel !== lastCat) {
+        const cr = document.createElement("tr");
+        cr.className = "cat-row";
+        cr.innerHTML = `<td colspan="11">${catLabel}</td>`;
+        sbody.appendChild(cr);
+        lastCat = catLabel;
+      }
+
+      const tr = document.createElement("tr");
+      const daysCells = p.days.map(d => {
+        const n = parseFloat(d) || 0;
+        return `<td class="stock-val ${n > 0 ? 'stock-pos' : 'stock-zero'}">${n > 0 ? n : "—"}</td>`;
+      }).join("");
+      const price = parseFloat(p.price) || 0;
+      tr.innerHTML = `
+        <td>${p.name}</td>
+        <td class="td-muted">${p.unit}</td>
+        <td class="td-muted">${price > 0 ? price.toLocaleString("pt-PT",{minimumFractionDigits:2})+" €" : "—"}</td>
+        ${daysCells}
+      `;
+      sbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("loadingScreen").style.display = "none";
+  document.getElementById("dashboard").style.display = "flex";
+}
+
+function el(id) { return document.getElementById(id); }
+function fmtV(val) {
+  const n = parseFloat(val) || 0;
+  return n === 0 ? "—" : n.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+}
+
+// Load on start
+loadData();
+// Auto-refresh every 5 minutes
+setInterval(loadData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
