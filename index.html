@@ -285,10 +285,10 @@ function fmtV(val) {
   const n = parseFloat(val) || 0;
   return n === 0 ? "—" : n.toLocaleString("pt-PT", {minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
 }
-function colorClass(val) {
-  const n = parseFloat(val);
-  if (isNaN(n) || n === 0) return "td-zero";
-  return n > 0 ? "td-green" : "td-red";
+
+// Limpa valores numéricos do CSV (remove €, espaços, converte vírgula decimal)
+function clean(s) {
+  return (s || "0").replace(/[€\s]/g, "").replace(",", ".");
 }
 
 function parseCSV(text) {
@@ -342,16 +342,16 @@ function renderDashboard(rows) {
     } else if (tipo === "DIARIO") {
       nights.push({
         name: (row[1] || "").trim(),
-        t1: row[2]||"0", t2: row[3]||"0", t3: row[4]||"0",
-        receita: row[5]||"0", req: row[6]||"0",
-        fap: row[7]||"0", revolut: row[8]||"0"
+        t1: clean(row[2]), t2: clean(row[3]), t3: clean(row[4]),
+        receita: clean(row[5]), req: clean(row[6]),
+        fap: clean(row[7]), revolut: clean(row[8])
       });
     } else if (tipo === "REQUISICAO") {
       reqs.push({
         name: (row[1]||"").trim(),
         unit: (row[2]||"").trim(),
-        price: row[3]||"0",
-        days: [row[4],row[5],row[6],row[7],row[8],row[9],row[10],row[11]].map(x => x||"0")
+        price: clean(row[3]),
+        days: [row[4],row[5],row[6],row[7],row[8],row[9],row[10],row[11]].map(x => clean(x))
       });
     }
   }
